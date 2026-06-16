@@ -246,7 +246,7 @@ const CREDENCIAIS = {usuario:'IECISADMIN', senha:'Admin_2009'};
 const state = {
   associados:[],
   pagamentos:{},
-  lancamentos:{},
+  lancamentos:[],
   config:{nomeAssociacao:NOME_ASSOC,mensalidade:MENSALIDADE_PADRAO},
   currentUser:null,
   view:'painel',
@@ -538,9 +538,8 @@ function formAssociadoHTML(a){
   a=a||{nome:'',cpf:'',telefone:'',endereco:'',dataAssociacao:hojeStr()};
   return '<form data-form="associado" class="form-grid">'+
     '<label>Nome completo<input name="nome" required value="'+escapeHtml(a.nome)+'"></label>'+
-    '<div class="form-row"><label>CPF<input name="cpf" data-mask="cpf" inputmode="numeric" required value="'+escapeHtml(a.cpf)+'" placeholder="000.000.000-00"></label>'+
-    '<label>Telefone<input name="telefone" data-mask="telefone" inputmode="numeric" required value="'+escapeHtml(a.telefone)+'" placeholder="(00) 00000-0000"></label></div>'+
-    '<div id="cpf-warn"></div>'+
+    '<div class="form-row">'<label>CPF<input name="cpf" data-mask="cpf" inputmode="numeric" maxlength="14" required value="'+escapeHtml(a.cpf)+'" placeholder="000.000.000-00"></label>'+
+    '<label>Telefone<input name="telefone" data-mask="telefone" inputmode="numeric" maxlength="15" required value="'+escapeHtml(a.telefone)+'" placeholder="(00) 00000-0000"></label></div>'+
     '<label>Endereço<textarea name="endereco" rows="2" required>'+escapeHtml(a.endereco)+'</textarea></label>'+
     '<label>Associado(a) desde<input name="dataAssociacao" type="date" required value="'+escapeHtml(a.dataAssociacao)+'"></label>'+
     '<p class="form-hint">Mensalidade atual: <strong>'+formatarMoeda(valorMensalidade())+'</strong> (ajuste em Configurações).</p>'+
@@ -690,8 +689,12 @@ async function onSubmitPagamento(form,fd){
   const associadoId=form.dataset.associadoId; const mes=form.dataset.mes;
   const valor=Number(fd.get('valor')); const data=fd.get('data'); const forma=fd.get('forma');
   const key=chavePagamento(associadoId,mes);
-  const {dados}=await atualizarChave('iecis_pagamentos',{},m=>{ m[key]={pago:true,valor,data,forma}; return m; });
-  state.pagamentos=dados; if(state.pagamentoVoltaCarne){abrirCarneModal();}else{fecharModal();} toast('Pagamento registrado.','success'); renderApp();
+  const fresco=await storageGet('iecis_pagamentos',{});
+  fresco[key]={pago:true,valor,data,forma};
+  await storageSet('iecis_pagamentos',fresco);
+  state.pagamentos=fresco;
+  if(state.pagamentoVoltaCarne){abrirCarneModal();}else{fecharModal();}
+  toast('Pagamento registrado.','success'); renderApp();
 }
 function confirmarDesfazerPagamento(associadoId,mes,vindoCarne){
   confirmarAcao('Desfazer pagamento de '+formatarMes(mes)+'?',async()=>{
@@ -702,10 +705,13 @@ function confirmarDesfazerPagamento(associadoId,mes,vindoCarne){
 }
 async function onSubmitLancamento(form,fd){
   const tipo=fd.get('tipo'); const categoria=fd.get('categoria'); const descricao=(fd.get('descricao')||'').trim(); const valor=Number(fd.get('valor')); const data=fd.get('data');
-  const {dados}=await atualizarChave('iecis_lancamentos',[],lista=>{lista.push({id:gerarId(),tipo,categoria,descricao,valor,data});return lista;});
-  state.lancamentos=dados; fecharModal(); toast('Lançamento registrado.','success'); renderApp();
+  const fresco=await storageGet('iecis_lancamentos',[]);
+  fresco.push({id:gerarId(),tipo,categoria,descricao,valor,data});
+  await storageSet('iecis_lancamentos',fresco);
+  state.lancamentos=fresco;
+  fecharModal(); toast('Lançamento registrado.','success'); renderApp();
 }
-function confirmarExcluirLancamento(id){ confirmarAcao('Excluir este lançamento?',async()=>{ const {dados}=await atualizarChave('iecis_lancamentos',[],l=>l.filter(x=>x.id!==id)); state.lancamentos=dados; renderApp(); toast('Excluído.','success'); },{titulo:'Excluir lançamento',danger:true,textoConfirmar:'Excluir'}); }
+function confirmarExcluirLancamento(id){ confirmarAcao('Excluir este lançamento?',async()=>{ const fresco=await storageGet('iecis_lancamentos',[]); const nova=fresco.filter(x=>x.id!==id); await storageSet('iecis_lancamentos',nova); state.lancamentos=nova; renderApp(); toast('Excluído.','success'); },{titulo:'Excluir lançamento',danger:true,textoConfirmar:'Excluir'}); }
 async function onSubmitConfigMensalidade(form,fd){ const m=Number(fd.get('mensalidade')); state.config={...state.config,mensalidade:m}; await storageSet('iecis_config',state.config); toast('Mensalidade atualizada.','success'); renderApp(); }
 function exportarBackup(){
   const bk={versao:1,exportadoEm:new Date().toISOString(),associados:state.associados,pagamentos:state.pagamentos,lancamentos:state.lancamentos};
@@ -776,7 +782,7 @@ function onGlobalChange(e){
 }
 function onGlobalInput(e){
   const el=e.target;
-  if(el.dataset&&el.dataset.mask){let v=el.value;if(el.dataset.mask==='cpf')v=maskCPF(v);else if(el.dataset.mask==='telefone')v=maskTelefone(v);if(v!==el.value){el.value=v;try{el.setSelectionRange(v.length,v.length);}catch(e){}}return;}
+  if(el.dataset&&el.dataset.mask){let v=el.value;if(el.dataset.mask==='cpf')v=maskCPF(v);else if(el.dataset.mask==='telefone')v=maskTelefone(v);if(v!==el.value){const pos=el.selectionStart+(v.length-el.value.length);el.value=v;try{el.setSelectionRange(pos,pos);}catch(e){}}return;}
   if(el.dataset&&el.dataset.bind&&(el.type==='text'||el.tagName==='TEXTAREA')){state[el.dataset.bind]=el.value;preservarFoco(renderApp);return;}
 }
 document.addEventListener('click',onGlobalClick);
