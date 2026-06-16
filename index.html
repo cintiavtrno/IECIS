@@ -538,7 +538,7 @@ function formAssociadoHTML(a){
   a=a||{nome:'',cpf:'',telefone:'',endereco:'',dataAssociacao:hojeStr()};
   return '<form data-form="associado" class="form-grid">'+
     '<label>Nome completo<input name="nome" required value="'+escapeHtml(a.nome)+'"></label>'+
-    '<div class="form-row">'<label>CPF<input name="cpf" data-mask="cpf" inputmode="numeric" maxlength="14" required value="'+escapeHtml(a.cpf)+'" placeholder="000.000.000-00"></label>'+
+    '<div class="form-row"><label>CPF<input name="cpf" data-mask="cpf" inputmode="numeric" maxlength="14" required value="'+escapeHtml(a.cpf)+'" placeholder="000.000.000-00"></label>'+
     '<label>Telefone<input name="telefone" data-mask="telefone" inputmode="numeric" maxlength="15" required value="'+escapeHtml(a.telefone)+'" placeholder="(00) 00000-0000"></label></div>'+
     '<label>Endereço<textarea name="endereco" rows="2" required>'+escapeHtml(a.endereco)+'</textarea></label>'+
     '<label>Associado(a) desde<input name="dataAssociacao" type="date" required value="'+escapeHtml(a.dataAssociacao)+'"></label>'+
