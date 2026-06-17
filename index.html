@@ -239,7 +239,60 @@ td.wrap-ok,th.wrap-ok{white-space:normal;}
 <div id="modal-root"></div>
 <div id="toast-root"></div>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="stampRoughIECIS" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3.5"/></filter></svg>
-<script>
+
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAmdnAXHnBMXRi7X2UQQF4foB6eKIwyO98",
+    authDomain: "iecis-gestao.firebaseapp.com",
+    projectId: "iecis-gestao",
+    storageBucket: "iecis-gestao.firebasestorage.app",
+    messagingSenderId: "230753742120",
+    appId: "1:230753742120:web:3f1c07eca85bb4e954b41d"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  window.fbStorageGet = async function(key, fallback){
+    try{
+      const snap = await getDoc(doc(db, "iecis", key));
+      if(!snap.exists()) return fallback;
+      const data = snap.data();
+      return (data && data.v !== undefined) ? JSON.parse(data.v) : fallback;
+    }catch(e){
+      console.error("Erro ao ler do Firestore:", key, e);
+      return fallback;
+    }
+  };
+
+  window.fbStorageSet = async function(key, value){
+    try{
+      await setDoc(doc(db, "iecis", key), { v: JSON.stringify(value) });
+      return true;
+    }catch(e){
+      console.error("Erro ao salvar no Firestore:", key, e);
+      return false;
+    }
+  };
+
+  window.fbSignIn = function(email, senha){
+    return signInWithEmailAndPassword(auth, email, senha);
+  };
+
+  window.fbSignOut = function(){
+    return signOut(auth);
+  };
+
+  window.fbAuthReady = new Promise((resolve)=>{
+    const unsub = onAuthStateChanged(auth, (user)=>{ unsub(); resolve(user); });
+  });
+</script>
+<script defer>
 'use strict';
 
 // ===== LOGO REAL DO IECIS (substitui o LOGO_B64 atual) =====
@@ -297,8 +350,8 @@ function cpfValido(masked){ const cpf=String(masked||'').replace(/\D/g,''); if(c
 function toast(msg,tipo){ const root=document.getElementById('toast-root'); const el=document.createElement('div'); el.className='toast'+(tipo?' is-'+tipo:''); el.textContent=msg; root.appendChild(el); setTimeout(()=>{el.style.transition='opacity .25s';el.style.opacity='0';setTimeout(()=>el.remove(),250);},2600); }
 
 /* STORAGE */
-async function storageGet(key,fallback){ try{ const r=await window.storage.get(key,true); return r?JSON.parse(r.value):fallback; }catch(e){ return fallback; } }
-async function storageSet(key,value){ try{ const r=await window.storage.set(key,JSON.stringify(value),true); return !!r; }catch(e){ console.error('Erro ao salvar',key,e); return false; } }
+async function storageGet(key,fallback){ return await window.fbStorageGet(key,fallback); }
+async function storageSet(key,value){ return await window.fbStorageSet(key,value); }
 async function carregarTudo(){
   const [associados,pagamentos,lancamentos]=await Promise.all([storageGet('iecis_associados',[]),storageGet('iecis_pagamentos',{}),storageGet('iecis_lancamentos',[])]);
   state.associados=associados; state.pagamentos=pagamentos; state.lancamentos=lancamentos;
@@ -387,7 +440,7 @@ function renderLogin(){
     '<h1 class="auth-title">IECIS</h1>'+
     '<p class="auth-sub">'+escapeHtml(NOME_COMPLETO)+'<br>Sistema de Gestão Interno</p>'+
     '<form data-form="login" class="form-grid">'+
-      '<label>Usuário<input name="usuario" required autocomplete="username" value=""></label>'+
+      '<label>E-mail<input name="email" type="email" required autocomplete="username" value=""></label>'+
       '<label>Senha<input name="senha" type="password" required autocomplete="current-password"></label>'+
       (state.erroLogin?'<div class="error-banner">'+escapeHtml(state.erroLogin)+'</div>':'')+
       '<button type="submit" class="btn btn-primary btn-block" style="font-size:16px;padding:14px">Entrar →</button>'+
@@ -637,10 +690,17 @@ function abrirModalLancamento(){
 
 /* AÇÕES */
 async function onSubmitLogin(form,fd){
-  const u=(fd.get('usuario')||'').trim();
-  const s=(fd.get('senha')||'').trim();
-  if(u===CREDENCIAIS.usuario&&s===CREDENCIAIS.senha){ state.currentUser=true; state.erroLogin=''; await carregarTudo(); renderApp(); }
-  else{ state.erroLogin='Usuário ou senha incorretos.'; renderApp(); }
+  const email=(fd.get('email')||'').trim();
+  const senha=(fd.get('senha')||'').trim();
+  try{
+    await window.fbSignIn(email,senha);
+    state.currentUser=true; state.erroLogin='';
+    await carregarTudo();
+    renderApp();
+  }catch(e){
+    state.erroLogin='E-mail ou senha incorretos.';
+    renderApp();
+  }
 }
 async function onSubmitAssociado(form,fd){
   const editId=form.dataset.editId||'';
@@ -719,7 +779,7 @@ async function onGlobalClick(e){
   try{
     switch(action){
       case 'nav': state.view=btn.dataset.view; renderApp(); break;
-      case 'logout': state.currentUser=null; renderApp(); break;
+      case 'logout': await window.fbSignOut(); state.currentUser=null; renderApp(); break;
       case 'refresh': await carregarTudo(); renderApp(); toast('Atualizado.','success'); break;
       case 'fechar-modal': fecharModal(); break;
       case 'confirmar-acao': if(_confirmCallback){const cb=_confirmCallback;_confirmCallback=null;fecharModal();await cb();} break;
@@ -787,8 +847,13 @@ document.addEventListener('change',onGlobalChange);
 document.addEventListener('input',onGlobalInput);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){const r=document.getElementById('modal-root');if(r&&r.innerHTML.trim()!=='')fecharModal();}});
 
-async function init(){
+aasync function init(){
   state.loading=true; renderApp();
+  const usuario=await window.fbAuthReady;
+  if(usuario){
+    state.currentUser=true;
+    await carregarTudo();
+  }
   const cfg=await storageGet('iecis_config',null);
   if(cfg&&cfg.mensalidade) state.config={...state.config,...cfg};
   state.loading=false; renderApp();
