@@ -847,7 +847,7 @@ document.addEventListener('change',onGlobalChange);
 document.addEventListener('input',onGlobalInput);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){const r=document.getElementById('modal-root');if(r&&r.innerHTML.trim()!=='')fecharModal();}});
 
-aasync function init(){
+async function init(){
   state.loading=true; renderApp();
   const usuario=await window.fbAuthReady;
   if(usuario){
