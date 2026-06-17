@@ -540,6 +540,7 @@ function formAssociadoHTML(a){
     '<label>Nome completo<input name="nome" required value="'+escapeHtml(a.nome)+'"></label>'+
     '<div class="form-row"><label>CPF<input name="cpf" data-mask="cpf" inputmode="numeric" maxlength="14" required value="'+escapeHtml(a.cpf)+'" placeholder="000.000.000-00"></label>'+
     '<label>Telefone<input name="telefone" data-mask="telefone" inputmode="numeric" maxlength="15" required value="'+escapeHtml(a.telefone)+'" placeholder="(00) 00000-0000"></label></div>'+
+    '<div id="cpf-warn"></div>'+
     '<label>Endereço<textarea name="endereco" rows="2" required>'+escapeHtml(a.endereco)+'</textarea></label>'+
     '<label>Associado(a) desde<input name="dataAssociacao" type="date" required value="'+escapeHtml(a.dataAssociacao)+'"></label>'+
     '<p class="form-hint">Mensalidade atual: <strong>'+formatarMoeda(valorMensalidade())+'</strong> (ajuste em Configurações).</p>'+
@@ -678,7 +679,6 @@ async function onSubmitAssociado(form,fd){
   const telefone=(fd.get('telefone')||'').trim();
   const endereco=(fd.get('endereco')||'').trim();
   const dataAssociacao=fd.get('dataAssociacao');
-  if(!cpfValido(cpf)&&!form.dataset.cpfConfirmado){ const w=document.getElementById('cpf-warn'); if(w) w.innerHTML='<div class="field-error">CPF parece inválido. Confira e clique em Salvar novamente para confirmar.</div>'; form.dataset.cpfConfirmado='1'; return; }
   const campos={nome,cpf,telefone,endereco,dataAssociacao};
   const {dados}=await atualizarChave('iecis_associados',[],lista=>{ if(editId){ const i=lista.findIndex(a=>a.id===editId); if(i>-1) lista[i]={...lista[i],...campos}; }else{ lista.push({id:gerarId(),...campos,ativo:true,criadoEm:new Date().toISOString()}); } return lista; });
   state.associados=dados; fecharModal(); toast(editId?'Associado atualizado.':'Associado cadastrado.','success'); renderApp();
@@ -782,7 +782,27 @@ function onGlobalChange(e){
 }
 function onGlobalInput(e){
   const el=e.target;
-  if(el.dataset&&el.dataset.mask){let v=el.value;if(el.dataset.mask==='cpf')v=maskCPF(v);else if(el.dataset.mask==='telefone')v=maskTelefone(v);if(v!==el.value){const pos=el.selectionStart+(v.length-el.value.length);el.value=v;try{el.setSelectionRange(pos,pos);}catch(e){}}return;}
+  if(el.dataset&&el.dataset.mask){
+    const maskTipo=el.dataset.mask;
+    const valorAntes=el.value;
+    const posAntes=(el.selectionEnd!=null?el.selectionEnd:valorAntes.length);
+    const digitosAntes=valorAntes.slice(0,posAntes).replace(/\D/g,'').length;
+    setTimeout(function(){
+      let v=el.value;
+      if(maskTipo==='cpf') v=maskCPF(v); else if(maskTipo==='telefone') v=maskTelefone(v);
+      if(v!==el.value){
+        el.value=v;
+        let pos=0,count=0;
+        while(pos<v.length&&count<digitosAntes){ if(/\d/.test(v[pos])) count++; pos++; }
+        try{ el.setSelectionRange(pos,pos); }catch(err){}
+        if(maskTipo==='cpf'){
+          const warnEl=document.getElementById('cpf-warn');
+          if(warnEl) warnEl.innerHTML=(v.replace(/\D/g,'').length===11&&!cpfValido(v))?'<div class="field-error">CPF não parece válido. Confira os números (ainda assim é possível salvar).</div>':'';
+        }
+      }
+    },0);
+    return;
+  }
   if(el.dataset&&el.dataset.bind&&(el.type==='text'||el.tagName==='TEXTAREA')){state[el.dataset.bind]=el.value;preservarFoco(renderApp);return;}
 }
 document.addEventListener('click',onGlobalClick);
