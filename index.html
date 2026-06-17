@@ -790,13 +790,13 @@ async function onSubmitLancamento(form,fd){
 function confirmarExcluirLancamento(id){ confirmarAcao('Excluir este lançamento?',async()=>{ const fresco=await storageGet('iecis_lancamentos',[]); const nova=fresco.filter(x=>x.id!==id); await storageSet('iecis_lancamentos',nova); state.lancamentos=nova; renderApp(); toast('Excluído.','success'); },{titulo:'Excluir lançamento',danger:true,textoConfirmar:'Excluir'}); }
 async function onSubmitConfigMensalidade(form,fd){ const m=Number(fd.get('mensalidade')); state.config={...state.config,mensalidade:m}; await storageSet('iecis_config',state.config); toast('Mensalidade atualizada.','success'); renderApp(); }
 function exportarBackup(){
-  const bk={versao:1,exportadoEm:new Date().toISOString(),associados:state.associados,pagamentos:state.pagamentos,lancamentos:state.lancamentos};
+ const bk={versao:1,exportadoEm:new Date().toISOString(),associados:state.associados,pagamentos:state.pagamentos,lancamentos:state.lancamentos,doacoes:state.doacoes};
   const blob=new Blob([JSON.stringify(bk,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='iecis-backup-'+hojeStr()+'.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); toast('Backup exportado.','success');
 }
 function onRestaurarBackup(file){
   confirmarAcao('Restaurar vai <strong>substituir todos os dados atuais</strong>. Não pode ser desfeito.',async()=>{
-    try{ const t=await file.text(); const d=JSON.parse(t); if(d.associados) await storageSet('iecis_associados',d.associados); if(d.pagamentos) await storageSet('iecis_pagamentos',d.pagamentos); if(d.lancamentos) await storageSet('iecis_lancamentos',d.lancamentos); await carregarTudo(); renderApp(); toast('Backup restaurado.','success'); }
+    try{ const t=await file.text(); const d=JSON.parse(t); if(d.associados) await storageSet('iecis_associados',d.associados); if(d.pagamentos) await storageSet('iecis_pagamentos',d.pagamentos); if(d.lancamentos) await storageSet('iecis_lancamentos',d.lancamentos); if(d.doacoes) await storageSet('iecis_doacoes',d.doacoes); await carregarTudo(); renderApp(); toast('Backup restaurado.','success'); }
     catch(e){ toast('Não foi possível ler o arquivo.','error'); }
   },{titulo:'Restaurar backup',danger:true,textoConfirmar:'Substituir dados'});
 }
