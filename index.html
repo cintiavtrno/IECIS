@@ -292,7 +292,20 @@ async function carregarTudo(){
   const [associados,pagamentos,lancamentos]=await Promise.all([storageGet('iecis_associados',[]),storageGet('iecis_pagamentos',{}),storageGet('iecis_lancamentos',[])]);
   state.associados=associados; state.pagamentos=pagamentos; state.lancamentos=lancamentos;
 }
-async function atualizarChave(key,fallback,mutatorFn){ const atual=await storageGet(key,fallback); const copia=Array.isArray(atual)?atual.slice():{...atual}; const atualizado=mutatorFn(copia); const ok=await storageSet(key,atualizado); return {ok,dados:atualizado}; }
+const MAPA_ESTADO_LOCAL={iecis_associados:'associados',iecis_pagamentos:'pagamentos',iecis_lancamentos:'lancamentos'};
+function mesclarComEstadoLocal(key,doServidor){
+  const propLocal=MAPA_ESTADO_LOCAL[key];
+  const local=propLocal?state[propLocal]:null;
+  if(!local) return doServidor;
+  if(Array.isArray(doServidor)){
+    const mapa=new Map();
+    doServidor.forEach(item=>{ if(item&&item.id) mapa.set(item.id,item); });
+    local.forEach(item=>{ if(item&&item.id) mapa.set(item.id,item); });
+    return Array.from(mapa.values());
+  }
+  return {...doServidor,...local};
+}
+async function atualizarChave(key,fallback,mutatorFn){ const doServidor=await storageGet(key,fallback); const atual=mesclarComEstadoLocal(key,doServidor); const copia=Array.isArray(atual)?atual.slice():{...atual}; const atualizado=mutatorFn(copia); const ok=await storageSet(key,atualizado); return {ok,dados:atualizado}; }
 
 /* CÁLCULOS */
 function chavePagamento(assocId,mes){ return assocId+'_'+mes; }
@@ -689,7 +702,8 @@ async function onSubmitPagamento(form,fd){
   const associadoId=form.dataset.associadoId; const mes=form.dataset.mes;
   const valor=Number(fd.get('valor')); const data=fd.get('data'); const forma=fd.get('forma');
   const key=chavePagamento(associadoId,mes);
-  const fresco=await storageGet('iecis_pagamentos',{});
+  const doServidor=await storageGet('iecis_pagamentos',{});
+  const fresco={...doServidor,...state.pagamentos};
   fresco[key]={pago:true,valor,data,forma};
   await storageSet('iecis_pagamentos',fresco);
   state.pagamentos=fresco;
@@ -705,8 +719,13 @@ function confirmarDesfazerPagamento(associadoId,mes,vindoCarne){
 }
 async function onSubmitLancamento(form,fd){
   const tipo=fd.get('tipo'); const categoria=fd.get('categoria'); const descricao=(fd.get('descricao')||'').trim(); const valor=Number(fd.get('valor')); const data=fd.get('data');
-  const fresco=await storageGet('iecis_lancamentos',[]);
-  fresco.push({id:gerarId(),tipo,categoria,descricao,valor,data});
+  const novoItem={id:gerarId(),tipo,categoria,descricao,valor,data};
+  const doServidor=await storageGet('iecis_lancamentos',[]);
+  const mapaLanc=new Map();
+  doServidor.forEach(item=>mapaLanc.set(item.id,item));
+  state.lancamentos.forEach(item=>mapaLanc.set(item.id,item));
+  mapaLanc.set(novoItem.id,novoItem);
+  const fresco=Array.from(mapaLanc.values());
   await storageSet('iecis_lancamentos',fresco);
   state.lancamentos=fresco;
   fecharModal(); toast('Lançamento registrado.','success'); renderApp();
